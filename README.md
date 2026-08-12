@@ -44,5 +44,5 @@ Using an illustrative linear program to allocate limited studio hours and budget
 
 ## Full Materials
 
-- 📊 [Full presentation (PDF)](slides/Spotify_Analysis_Presentation.pdf)
-- 📄 Analysis code & write-up: see the R Markdown file in this repo
+- [Full presentation (PDF)](slides/Spotify_Analysis_Presentation.pdf)
+- Analysis code & write-up: see the R Markdown file in this repo
