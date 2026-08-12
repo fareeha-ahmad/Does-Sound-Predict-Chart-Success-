@@ -1,0 +1,330 @@
+---
+title: "Spotify Analysis Final Project"
+author: "Fareeha Ahmad"
+date: "2026-06-23"
+output: html_document
+---
+
+## R Markdown
+------------------------------------------------------------------------------------
+## Introduction
+In this project I will analyze a dataset of ~30000 Spotify songs to see what 
+characteristics of songs relate to its popularity. I will use these characteristics 
+to predict whether or not a song will chart.
+
+Dataset: https://www.kaggle.com/datasets/joebeachcapital/30000-spotify-songs 
+
+## Loading in data from spotify_songs.csv and calling it spotify
+```{r}
+spotify = read.csv("spotify_songs.csv")
+```
+
+## Going to start by inspecting the data to see what needs to be cleaned
+```{r}
+# Inspecting the data
+str(spotify)
+names(spotify)
+nrow(spotify)
+ncol(spotify)
+
+```
+
+# Cleaning the data
+```{r}
+# Checking for any missing values in the database
+sum(complete.cases(spotify)) 
+nrow(spotify)
+# 5 less complete rows than total rows
+```
+
+```{r}
+# Checking if specific columns have missing values
+sum(is.na(spotify$danceability))
+sum(is.na(spotify$energy))
+sum(is.na(spotify$instrumentalness))
+sum(is.na(spotify$track_popularity))
+# No missing values in these rows
+```
+
+```{r}
+# Removing rows with missing values
+spotify = na.omit(spotify)
+# Using these next two queries to see if the number of complete rows matches the number of rows total
+nrow(spotify) 
+sum(complete.cases(spotify)) 
+# Rows match up now
+```
+
+```{r}
+# Confirming data types that need to be changed
+class(spotify$playlist_genre)
+class(spotify$key)
+class(spotify$mode)
+
+# Make genre, mode, and key factors
+spotify$playlist_genre = as.factor(spotify$playlist_genre)
+spotify$key = as.factor(spotify$key)
+spotify$mode = as.factor(spotify$mode)
+
+# Recheck structure to confirm changes
+str(spotify)
+```
+
+## Now I am going to create a charted variable based on track_popularity column being over 70
+```{r}
+spotify$charted = "No" # Creating the column and filling it with No
+spotify$charted[spotify$track_popularity >= 70] = "Yes" # Making it Yes if it is over 70
+spotify$charted = as.factor(spotify$charted) # Also has to be a factor
+
+table(spotify$charted) # To see how many charted variables there are
+```
+
+## Descrptive Analysis
+```{r}
+# Summary statistics fro the whole dataframe
+summary(spotify)
+```
+```{r}
+# Summary statistics for specific numeric variables
+summary(spotify$danceability)
+sd(spotify$danceability)
+
+summary(spotify$energy)
+sd(spotify$energy)
+
+summary(spotify$track_popularity)
+sd(spotify$track_popularity)
+
+summary(spotify$instrumentalness)
+sd(spotify$instrumentalness)
+
+summary(spotify$acousticness)
+sd(spotify$acousticness)
+```
+```{r}
+# Frequency tables for factor variables
+table(spotify$playlist_genre)
+table(spotify$key)
+table(spotify$mode)
+```
+
+```{r}
+# Frequency tables of songs that charted, and charted songs with the genres they are in
+table(spotify$charted)
+table(spotify$charted, spotify$playlist_genre)
+```
+
+```{r}
+# Numeric variable averages by genre
+tapply(spotify$danceability, spotify$playlist_genre , mean)
+tapply(spotify$energy, spotify$playlist_genre , mean)
+tapply(spotify$track_popularity, spotify$playlist_genre , mean)
+```
+
+```{r}
+# Correlation of every relevant numeric feature against track popularity, this will help decide what to use in the predictive model
+
+cor(spotify$danceability, spotify$track_popularity)
+cor(spotify$energy, spotify$track_popularity) 
+cor(spotify$loudness, spotify$track_popularity)
+cor(spotify$speechiness, spotify$track_popularity)
+cor(spotify$acousticness, spotify$track_popularity)
+cor(spotify$instrumentalness, spotify$track_popularity) 
+cor(spotify$liveness, spotify$track_popularity)
+cor(spotify$valence , spotify$track_popularity)
+cor(spotify$tempo , spotify$track_popularity)
+cor(spotify$duration_ms , spotify$track_popularity) 
+
+# Highest correlation: Instrumentalness, Energy, Duration (None of the correlations are particularly high)
+```
+
+```{r}
+# Making the plots (Histograms)
+hist(spotify$track_popularity, main = "Track Popularity Distribution", col = "lightblue")
+
+hist(spotify$energy, main = "Energy Distribution", col = "lightgreen")
+
+hist(spotify$instrumentalness, main = "Instrumentalness Distribution", col = "lightpink")
+
+hist(spotify$duration_ms, main = "Duration Distribution", col = "lightyellow")
+
+```
+
+```{r}
+# Making the plots (Boxplots)
+boxplot(spotify$track_popularity~spotify$charted, horizontal = T, col = "yellowgreen", main = "Track Popularity by Status of Charted")
+
+boxplot(spotify$track_popularity~spotify$playlist_genre, horizontal = T, col = "orange", main = "Popularity by Genre")
+```
+```{r}
+# Making the plots (Scatterplots)
+plot(spotify$instrumentalness, spotify$track_popularity, col = "purple", main = "Instrumentalness vs Track Popularity")
+
+plot(spotify$energy, spotify$track_popularity, col = "red", main = "Energy vs Track Popularity")
+
+plot(spotify$duration_ms, spotify$track_popularity, col = "darkgreen", main = "Duration vs Track Popularity")
+
+# These reemphasize the lack of correlation as well
+```
+## Predictive Analysis
+
+# -------------- Install the packages
+install.packages("rpart")
+install.packages("rpart.plot")
+# ---------------------------------------
+
+```{r}
+# Load each library
+library(rpart)
+library(rpart.plot)
+```
+
+```{r}
+# Creating a subset from the dataset with 70% of the rows assigned to a train dataframe and the remaining 30% assigned to a test dataframe
+smp_size = floor(0.70 * nrow(spotify))
+set.seed(123)
+train_ind = sample(seq_len(nrow(spotify)), size = smp_size)
+train = spotify[train_ind, ]
+test = spotify[-train_ind, ]
+```
+
+```{r}
+# Run the decision tree function, this will generate the algorithm to predict charted status based on the characteristics of the song
+spotify_model = rpart(charted~instrumentalness+energy+duration_ms, train, method = "class")
+```
+
+```{r}
+# Displaying the decision tree 
+rpart.plot(spotify_model, type = 4, extra = 101)
+
+# Decision tree collapses into just one node, there are no splits because none of the predictors are strong enough variables to predict charting
+```
+
+```{r}
+table(test$charted)
+# Test set is imbalanced
+```
+
+```{r}
+p = predict(spotify_model, test, type = "class")
+```
+
+```{r}
+test$predict = p
+```
+
+
+```{r}
+table(test[ , c("charted", "predict")])
+# Decision tree predicted no for every single song
+```
+# Checking significancy
+- My predictive model showed that the variables I used cannot be used to predict whether or not a song will chart, so I want to check their significance 
+```{r}
+options(scipen = 999)
+
+R1 = lm(track_popularity~energy, data = spotify)
+
+summary(R1) # This is significant
+```
+
+```{r}
+options(scipen = 999)
+
+R2 = lm(track_popularity~instrumentalness, data = spotify)
+
+summary(R2) # This is significant
+```
+
+```{r}
+options(scipen = 999)
+
+R3 = lm(track_popularity~duration_ms, data = spotify)
+
+summary(R3) # This is significant
+```
+
+## Prescrptive Analysis
+Scenario is that a record label needs to decide how to allocate their limited studio hours to either energy focused tracks or instrumental focused tracks each month, in order to maximize the total popularity of the tracks that they produce
+
+# Step 1: LP formulation
+Variables: 
+E = energy focused tracks
+I = instrumental focused tracks
+
+LP Problem - Objective Function
+Max Z = (average popularity of energy tracks)E + (average popularity of instrumental tracks)I
+MaxZ = energyavgpop(E) + instavgpop(I)
+
+Subject to (constraints)
+4E + 6I = 160    Studio hours
+500E + 300I = 12000.     Budget
+E >= 0     I >= 0      Non-negativity          
+
+```{r}
+# Load lpSolve
+library(lpSolve)
+```
+
+```{r}
+# Average popularity numbers from data that will be used as objective coefficients
+energyavgpop = mean(spotify$track_popularity[spotify$energy > 0.7])
+instavgpop = mean(spotify$track_popularity[spotify$instrumentalness > 0.5])
+
+energyavgpop
+instavgpop
+# Checking the values
+```
+
+```{r}
+# Objective: Vector
+objective = c(energyavgpop, instavgpop)
+```
+
+```{r}
+# Constr: matrix
+constr = matrix(c(4,6,500,300), nrow = 2, byrow = TRUE)
+```
+
+
+```{r}
+# Constr.dir: Vector
+constr.dir = c("<=", "<=")
+```
+
+
+```{r}
+# Rhs: Vector
+rhs = c(160, 12000)
+```
+
+
+```{r}
+# Find the optimal solution
+optimum = lp(direction = "max", objective, constr, constr.dir, rhs, compute.sens = TRUE)
+```
+
+
+```{r}
+# Display the optimum solution values
+optimum$solution
+# E: 13.33333
+# I: 17.77778
+```
+
+```{r}
+# Display optimum objective value 
+optimum$objval
+```
+
+
+```{r}
+# Obtain dual values 
+optimum$duals
+# Studio hours: 2.1009426
+# Budget:0.0640122
+# E: 0.0000000
+# I: 0.0000000
+```
+
+## Knit to HTML
